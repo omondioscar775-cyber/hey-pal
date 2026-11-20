@@ -55,6 +55,20 @@ test(
     };
     const registered = await request("POST", "/auth/register", account);
     assert.equal(registered.status, 201);
+    assert.equal(
+      (await request("POST", "/auth/register", account)).status,
+      409,
+    );
+    assert.equal(
+      (
+        await request("POST", "/auth/register", {
+          ...account,
+          email: "invalid",
+          password: "short",
+        })
+      ).status,
+      400,
+    );
     token = registered.data.token;
     assert.ok(!("password" in registered.data.user));
     assert.equal(

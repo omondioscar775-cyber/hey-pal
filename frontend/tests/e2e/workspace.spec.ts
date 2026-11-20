@@ -133,12 +133,34 @@ test("registration, goal, approval, workload, focus and recovery use the workspa
   expect(
     (await (await api.get("/api/circleup/roadmaps")).json()).roadmaps,
   ).toHaveLength(0);
-  await draft
-    .getByRole("button", { name: "Approve & Activate Roadmap" })
-    .click();
+  await draft.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Approve saved draft" }).click();
   await expect(page.getByText("Roadmap activated.")).toBeVisible();
 
   await page.goto("/planner");
+  await page.getByRole("button", { name: "Open calendar bookings" }).click();
+  await expect(
+    page.getByText("Free time in the next seven calendar days", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  const day = await page.evaluate(() => {
+    const date = new Date();
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  });
+  await page.getByLabel("Start time").fill(day + "T13:00");
+  await page.getByLabel("End time").fill(day + "T14:00");
+  await page.getByRole("button", { name: "Preview booking" }).click();
+  await expect(
+    page.getByRole("button", { name: "Confirm booking" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Confirm booking" }).click();
+  await expect(page.getByText("Calendar booking saved.")).toBeVisible();
   await page.getByRole("button", { name: "New task" }).click();
   const taskEditor = page.getByRole("dialog", { name: "Create a task" });
   await taskEditor.getByLabel("Task Title").fill("Run interval session");

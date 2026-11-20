@@ -12,6 +12,7 @@ const proposalId = "e".repeat(24);
 let nextId = 1;
 let focus;
 let review;
+const bookings = [];
 const iso = () => new Date().toISOString();
 
 createServer(async (request, response) => {
@@ -33,6 +34,7 @@ createServer(async (request, response) => {
       for (const collection of Object.values(records)) collection.length = 0;
       focus = undefined;
       review = undefined;
+      bookings.length = 0;
     }
     return reply(path.endsWith("/register") ? 201 : 200, {
       success: true,
@@ -129,6 +131,42 @@ createServer(async (request, response) => {
     if (method === "PUT") review = JSON.parse(await read(request));
     return reply(200, { success: true, review: review ?? null });
   }
+  if (
+    method === "POST" &&
+    /^\/api\/roadmaps\/[a-f0-9]{24}\/approve$/.test(path)
+  ) {
+    const id = path.split("/")[3];
+    const roadmap = records.roadmaps.find((item) => item._id === id);
+    const expected = JSON.parse(await read(request));
+    if (
+      !roadmap ||
+      roadmap.status !== "draft" ||
+      expected.version !== roadmap.version ||
+      expected.updatedAt !== roadmap.updatedAt
+    )
+      return reply(409, { success: false, message: "This draft has changed." });
+    for (const previous of records.roadmaps) {
+      if (previous.goalId === roadmap.goalId && previous.status === "active")
+        previous.status = "superseded";
+    }
+    roadmap.status = "active";
+    return reply(200, { success: true, roadmap });
+  }
+  if (path === "/api/planner/capacity")
+    return reply(200, { success: true, availableMinutes: 180 });
+  if (path === "/api/planner/blocks" && method === "GET")
+    return reply(200, { success: true, blocks: bookings });
+  if (
+    path === "/api/planner/preview" ||
+    (path === "/api/planner/blocks" && method === "POST")
+  ) {
+    const input = JSON.parse(await read(request));
+    if (path.endsWith("/preview"))
+      return reply(200, { success: true, block: input });
+    const block = { ...input, _id: "b".repeat(24), status: "planned" };
+    bookings.push(block);
+    return reply(201, { success: true, block });
+  }
   const [, , name, id] = path.split("/");
   const list = records[name];
   if (!list)
@@ -154,7 +192,8 @@ createServer(async (request, response) => {
       );
       record.version = previous.length + 1;
       for (const roadmap of previous)
-        if (roadmap.status === "active") roadmap.status = "superseded";
+        if (record.status === "active" && roadmap.status === "active")
+          roadmap.status = "superseded";
     }
     list.unshift(record);
     return reply(201, { success: true, [singular]: record });

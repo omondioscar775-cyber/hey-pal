@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { issueToken, password } from "../modules/auth/service.js";
 import { z } from "zod";
+import mongoose from "mongoose";
 import User from "../models/User.js";
 
 const registerSchema = z.object({
@@ -39,17 +40,21 @@ export const register = async (req: Request, res: Response) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-  });
-
-  const token = await issueToken(
-    user._id.toString(),
-    user.credentialsChangedAt,
+  const { user, token } = await mongoose.connection.transaction(
+    async (session) => {
+      const user = await new User({
+        name,
+        email,
+        password: hashedPassword,
+      }).save({ session });
+      const token = await issueToken(
+        user.id,
+        user.credentialsChangedAt,
+        session,
+      );
+      return { user, token };
+    },
   );
-
   return res.status(201).json({
     success: true,
     message: "Your CircleUp account has been created.",

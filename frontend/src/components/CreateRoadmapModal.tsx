@@ -11,6 +11,7 @@ interface CreateRoadmapModalProps {
   goals: Goal[];
   roadmaps: Roadmap[];
   initialGoalId?: string;
+  existingDraft?: Roadmap;
   onRoadmapCreated: (roadmap: Roadmap) => void;
 }
 
@@ -19,16 +20,21 @@ export default function CreateRoadmapModal({
   goals,
   roadmaps,
   initialGoalId,
+  existingDraft,
   onRoadmapCreated,
 }: CreateRoadmapModalProps) {
   const initialGoal =
     goals.find((goal) => goal._id === initialGoalId) ?? goals[0];
-  const initialDraft = initialGoal
-    ? generateRoadmapDraft(initialGoal)
-    : { title: "", milestones: [] };
+  const initialDraft =
+    existingDraft ??
+    (initialGoal
+      ? generateRoadmapDraft(initialGoal)
+      : { title: "", milestones: [] });
   const [goalId, setGoalId] = useState(initialGoal?._id ?? "");
   const [title, setTitle] = useState(initialDraft.title);
-  const [milestones, setMilestones] = useState(initialDraft.milestones);
+  const [milestones, setMilestones] = useState<Roadmap["milestones"]>(
+    initialDraft.milestones,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,8 +79,7 @@ export default function CreateRoadmapModal({
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async (activate: boolean) => {
     if (!goalId || !title.trim()) {
       setError("Select a goal and provide a roadmap title.");
       return;
@@ -86,18 +91,21 @@ export default function CreateRoadmapModal({
       const formattedMilestones = milestones
         .filter((m) => m.title.trim().length > 0)
         .map((m) => ({
+          _id: m._id,
           title: m.title.trim(),
           description: m.description?.trim() || undefined,
           targetDate: m.targetDate || undefined,
-          completed: false,
+          completed: m.completed,
         }));
 
-      const res = await roadmapsApi.createRoadmap({
-        goalId,
-        title,
-        milestones: formattedMilestones,
-        status: "active",
-      });
+      const updates = { title, milestones: formattedMilestones };
+      const res = existingDraft
+        ? await roadmapsApi.updateRoadmap(existingDraft._id, updates)
+        : await roadmapsApi.createRoadmap({
+            ...updates,
+            goalId,
+            status: activate ? "active" : "draft",
+          });
 
       if (res.success && res.roadmap) {
         onRoadmapCreated(res.roadmap);
@@ -130,7 +138,10 @@ export default function CreateRoadmapModal({
         </div>
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save(!existingDraft);
+          }}
           className="p-6 space-y-4 overflow-y-auto flex-1"
         >
           {error && (
@@ -151,6 +162,7 @@ export default function CreateRoadmapModal({
             </label>
             <select
               id="CreateRoadmapModal-field-1"
+              disabled={Boolean(existingDraft)}
               value={goalId}
               onChange={(e) => handleGoalChange(e.target.value)}
               required
@@ -315,16 +327,30 @@ export default function CreateRoadmapModal({
             >
               Cancel
             </button>
+            {!existingDraft && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={loading || !goalId || !title.trim()}
+                onClick={() => void save(false)}
+              >
+                Save draft
+              </button>
+            )}
             <button
               type="submit"
               disabled={loading || !goalId || !title.trim()}
               className="px-5 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors disabled:opacity-50"
             >
-              {loading
-                ? "Activating..."
-                : activeRoadmap
-                  ? "Approve & Replace Active Roadmap"
-                  : "Approve & Activate Roadmap"}
+              {existingDraft
+                ? loading
+                  ? "Saving..."
+                  : "Save draft"
+                : loading
+                  ? "Activating..."
+                  : activeRoadmap
+                    ? "Approve & Replace Active Roadmap"
+                    : "Approve & Activate Roadmap"}
             </button>
           </div>
         </form>

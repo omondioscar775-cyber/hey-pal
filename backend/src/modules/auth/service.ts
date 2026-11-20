@@ -1,3 +1,4 @@
+import type { ClientSession } from "mongoose";
 import { createHash, randomBytes } from "node:crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -21,7 +22,11 @@ export const password = z
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
-export async function issueToken(userId: string, credentialStamp?: Date) {
+export async function issueToken(
+  userId: string,
+  credentialStamp?: Date,
+  databaseSession?: ClientSession,
+) {
   const secret = process.env.JWT_SECRET;
   if (!secret)
     throw new ApiError(
@@ -29,11 +34,11 @@ export async function issueToken(userId: string, credentialStamp?: Date) {
       "AUTH_UNAVAILABLE",
       "Authentication is unavailable.",
     );
-  const session = await AuthSession.create({
+  const session = await new AuthSession({
     userId,
     credentialStamp,
     expiresAt: new Date(Date.now() + lifetime * 1000),
-  });
+  }).save({ session: databaseSession });
   return jwt.sign({ userId }, secret, {
     algorithm: "HS256",
     expiresIn: lifetime,
@@ -93,13 +98,11 @@ export async function requestReset(req: Request, res: Response) {
       );
     }
   }
-  res
-    .status(202)
-    .json({
-      success: true,
-      message:
-        "If the account can receive mail, reset instructions will be sent.",
-    });
+  res.status(202).json({
+    success: true,
+    message:
+      "If the account can receive mail, reset instructions will be sent.",
+  });
 }
 
 export async function completeReset(req: Request, res: Response) {

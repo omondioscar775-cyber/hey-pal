@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import CreateRoadmapModal from "./CreateRoadmapModal";
 import CreateTaskModal from "./CreateTaskModal";
 import { Modal } from "./Modal";
+import { CalendarPlanner } from "./CalendarPlanner";
 import { AvailabilityEditor } from "./AvailabilityEditor";
 import { EmptyState, ErrorState, PageHeader } from "./AppShell";
 import { WorkspaceData, type WorkspaceRecords } from "./WorkspaceData";
@@ -43,6 +44,7 @@ function RoadmapList({
   reload,
 }: WorkspaceRecords & { initialGoal?: string; reload: () => void }) {
   const [selection, setSelection] = useState(initialGoal ?? "");
+  const [editingDraft, setEditingDraft] = useState<Roadmap>();
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -51,6 +53,23 @@ function RoadmapList({
   const versions = roadmaps
     .filter((item) => relatedId(item.goalId) === goal?._id)
     .sort((a, b) => b.version - a.version);
+  async function approve(roadmap: Roadmap) {
+    setPending(true);
+    setError("");
+    try {
+      await roadmapsApi.approveRoadmap(roadmap);
+      setNotice("Roadmap activated.");
+      reload();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Could not activate your draft.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
   async function toggle(roadmap: Roadmap, index: number) {
     setPending(true);
     setError("");
@@ -129,6 +148,27 @@ function RoadmapList({
                       Version {roadmap.version} · {roadmap.status}
                     </span>
                   </div>
+                  {roadmap.status === "draft" && (
+                    <div className="actions">
+                      <button
+                        className="button secondary"
+                        disabled={pending}
+                        onClick={() => {
+                          setEditingDraft(roadmap);
+                          setCreating(true);
+                        }}
+                      >
+                        Edit draft
+                      </button>
+                      <button
+                        className="button"
+                        disabled={pending || !roadmap.milestones.length}
+                        onClick={() => void approve(roadmap)}
+                      >
+                        Approve saved draft
+                      </button>
+                    </div>
+                  )}
                   <ol className="timeline">
                     {roadmap.milestones.map((milestone, index) => (
                       <li key={milestone._id ?? index}>
@@ -201,10 +241,18 @@ function RoadmapList({
           goals={goals}
           roadmaps={roadmaps}
           initialGoalId={goal?._id}
-          onClose={() => setCreating(false)}
+          existingDraft={editingDraft}
+          onClose={() => {
+            setCreating(false);
+            setEditingDraft(undefined);
+          }}
           onRoadmapCreated={(roadmap) => {
             setSelection(relatedId(roadmap.goalId));
-            setNotice("Roadmap activated.");
+            setNotice(
+              roadmap.status === "draft"
+                ? "Draft saved."
+                : "Roadmap activated.",
+            );
             reload();
           }}
         />
@@ -523,6 +571,7 @@ function Schedule({
         </div>
       )}
       <AvailabilityEditor />
+      <CalendarPlanner tasks={tasks} />
       {removing && (
         <Modal
           label="Delete task"

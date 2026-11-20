@@ -122,7 +122,7 @@ export const roadmapsApi = {
       targetDate?: string;
       completed?: boolean;
     }>;
-    status?: "active" | "superseded" | "completed";
+    status?: "draft" | "active" | "superseded" | "completed";
   }) => {
     return apiRequest<{ success: boolean; message: string; roadmap: Roadmap }>(
       "/roadmaps",
@@ -133,6 +133,17 @@ export const roadmapsApi = {
     );
   },
 
+  approveRoadmap: (roadmap: Roadmap) =>
+    apiRequest<{ success: boolean; roadmap: Roadmap }>(
+      "/roadmaps/" + roadmap._id + "/approve",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          version: roadmap.version,
+          updatedAt: roadmap.updatedAt,
+        }),
+      },
+    ),
   updateRoadmap: async (id: string, updates: Partial<Roadmap>) => {
     return apiRequest<{ success: boolean; message: string; roadmap: Roadmap }>(
       `/roadmaps/${id}`,

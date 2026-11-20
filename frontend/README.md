@@ -14,7 +14,7 @@ Open a terminal in this repository folder for each process below. Use `npm.cmd` 
 
 1. In `backend`, run `npm ci`. Configure a replica-set `MONGODB_URI` and `JWT_SECRET` in the backend environment, then run `npm run dev`. See [backend setup](../docs/BACKEND.md).
 2. In `frontend`, run `npm ci` and `npm run dev`. Open the local URL printed by Next.js.
-3. Set `CIRCLEUP_API_URL` in the frontend server environment if Express uses an address other than `http://localhost:5000/api`. Production requires a Next.js server runtime, HTTPS, and a reachable Express API.
+3. Set `CIRCLEUP_API_URL` in the frontend server environment when Express uses an address other than `http://localhost:5000/api`. Production requires a Next.js server runtime, HTTPS, and a reachable Express API. Vercel requires the server-side variable. See [deployment troubleshooting](../docs/IMPLEMENTATION_STATUS.md).
 
 The same-origin Next.js proxy forwards the JWT to Express using its existing bearer contract. The browser receives the user record and an HttpOnly session cookie. Browsers upgrading from an earlier version clear the legacy stored token and sign in again.
 
@@ -39,7 +39,7 @@ The same-origin Next.js proxy forwards the JWT to Express using its existing bea
 
 ## Backend integration details
 
-The workspace uses the existing goal, roadmap and task APIs. Availability, managed logout, password reset, verified recovery options and approval, focus sessions, and weekly review writes use the expanded backend APIs. Calendar reservations and capacity are available through the API. The Planner UI includes an availability editor and retains date-based task scheduling. Full account preferences, Circle invitations and sharing, and launch-jurisdiction data policy remain pending.
+The workspace uses the existing goal, roadmap and task APIs. Availability, managed logout, password reset, verified recovery options and approval, focus sessions, and weekly review writes use the expanded backend APIs. The Planner UI includes availability, timed booking preview and confirmation, calendar capacity, and date-based task scheduling. Full account preferences, Circle invitations and sharing, and launch-jurisdiction data policy remain pending.
 ## Verification
 
 Run `npm run lint`, `npm test` and `npm run build` from `frontend`. The unit tests require Node.js 24. Install the default browser with `npx playwright install chromium`, then run `npm run test:e2e`. To use an existing Microsoft Edge installation, set `CIRCLEUP_BROWSER_CHANNEL=msedge`.
