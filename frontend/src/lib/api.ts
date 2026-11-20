@@ -1,108 +1,59 @@
 import type { User, Goal, Roadmap, Task } from "../types/index";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
-export const getToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("circleup_token");
-};
-
-export const setToken = (token: string): void => {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("circleup_token", token);
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
   }
-};
-
-export const removeToken = (): void => {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("circleup_token");
-  }
-};
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message?: string;
-  data?: T;
-  [key: string]: unknown;
 }
 
 export async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const url = `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-
-  const res = await fetch(url, {
+  const response = await fetch("/api/circleup" + endpoint, {
     ...options,
-    headers,
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", ...options.headers },
   });
-
-  const data = await res.json().catch(() => ({
-    success: false,
-    message: "Failed to parse server response.",
-  }));
-
-  if (!res.ok) {
-    const errorMsg =
-      data.message ||
-      (data.errors
-        ? Object.values(data.errors).flat().join(", ")
-        : `Request failed with status ${res.status}`);
-    throw new Error(errorMsg);
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data || data.success !== true) {
+    const fields = data?.errors
+      ? Object.values(data.errors).flat().join(" ")
+      : "";
+    if (response.status === 401 && !endpoint.startsWith("/auth/")) {
+      window.dispatchEvent(new Event("circleup:expired"));
+    }
+    throw new ApiError(
+      fields || data?.message || "The server returned an unexpected response.",
+      response.status,
+    );
   }
-
   return data as T;
 }
 
-// ----------------- Auth API -----------------
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const data = await apiRequest<{
-      success: boolean;
-      token: string;
-      user: User;
-    }>("/auth/login", {
+  login: (email: string, password: string) =>
+    apiRequest<{ user: User }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
-    });
-    setToken(data.token);
-    return data;
-  },
-
-  register: async (name: string, email: string, password: string) => {
-    const data = await apiRequest<{
-      success: boolean;
-      token: string;
-      user: User;
-    }>("/auth/register", {
+    }),
+  register: (name: string, email: string, password: string) =>
+    apiRequest<{ user: User }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ name, email, password }),
-    });
-    setToken(data.token);
-    return data;
-  },
-
-  getMe: async () => {
-    return apiRequest<{ success: boolean; user: User }>("/auth/me");
-  },
+    }),
+  getMe: () => apiRequest<{ user: User }>("/auth/me"),
+  logout: () => apiRequest("/auth/logout", { method: "POST" }),
 };
-
 // ----------------- Goals API -----------------
 export const goalsApi = {
   getGoals: async () => {
-    return apiRequest<{ success: boolean; count: number; goals: Goal[] }>("/goals");
+    return apiRequest<{ success: boolean; count: number; goals: Goal[] }>(
+      "/goals",
+    );
   },
 
   getGoalById: async (id: string) => {
@@ -123,7 +74,7 @@ export const goalsApi = {
       {
         method: "POST",
         body: JSON.stringify(goalData),
-      }
+      },
     );
   },
 
@@ -133,7 +84,7 @@ export const goalsApi = {
       {
         method: "PATCH",
         body: JSON.stringify(updates),
-      }
+      },
     );
   },
 
@@ -152,12 +103,14 @@ export const roadmapsApi = {
     if (params?.status) query.append("status", params.status);
     const qs = query.toString() ? `?${query.toString()}` : "";
     return apiRequest<{ success: boolean; count: number; roadmaps: Roadmap[] }>(
-      `/roadmaps${qs}`
+      `/roadmaps${qs}`,
     );
   },
 
   getRoadmapById: async (id: string) => {
-    return apiRequest<{ success: boolean; roadmap: Roadmap }>(`/roadmaps/${id}`);
+    return apiRequest<{ success: boolean; roadmap: Roadmap }>(
+      `/roadmaps/${id}`,
+    );
   },
 
   createRoadmap: async (data: {
@@ -176,7 +129,7 @@ export const roadmapsApi = {
       {
         method: "POST",
         body: JSON.stringify(data),
-      }
+      },
     );
   },
 
@@ -186,14 +139,17 @@ export const roadmapsApi = {
       {
         method: "PATCH",
         body: JSON.stringify(updates),
-      }
+      },
     );
   },
 
   deleteRoadmap: async (id: string) => {
-    return apiRequest<{ success: boolean; message: string }>(`/roadmaps/${id}`, {
-      method: "DELETE",
-    });
+    return apiRequest<{ success: boolean; message: string }>(
+      `/roadmaps/${id}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 };
 
@@ -222,7 +178,7 @@ export const tasksApi = {
 
     const qs = query.toString() ? `?${query.toString()}` : "";
     return apiRequest<{ success: boolean; count: number; tasks: Task[] }>(
-      `/tasks${qs}`
+      `/tasks${qs}`,
     );
   },
 
@@ -247,7 +203,7 @@ export const tasksApi = {
       {
         method: "POST",
         body: JSON.stringify(data),
-      }
+      },
     );
   },
 
@@ -257,7 +213,7 @@ export const tasksApi = {
       {
         method: "PATCH",
         body: JSON.stringify(updates),
-      }
+      },
     );
   },
 

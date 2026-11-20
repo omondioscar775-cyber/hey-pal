@@ -4,6 +4,10 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
+  workspaceRevision: number;
+  accountStatus: "active" | "suspended" | "deleted";
+  credentialsChangedAt?: Date;
+  timezone: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,13 +28,21 @@ const userSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
     },
+    workspaceRevision: { type: Number, default: 0, select: false },
+    timezone: { type: String, default: "UTC" },
+    accountStatus: {
+      type: String,
+      enum: ["active", "suspended", "deleted"],
+      default: "active",
+    },
+    credentialsChangedAt: Date,
     password: {
       type: String,
       required: true,
       select: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const User = mongoose.model<IUser>("User", userSchema);

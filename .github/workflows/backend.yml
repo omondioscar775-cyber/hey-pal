@@ -1,0 +1,29 @@
+name: CircleUp backend
+on:
+  pull_request:
+    paths: [backend/**, .github/workflows/backend.yml]
+  push:
+    branches: [main]
+    paths: [backend/**, .github/workflows/backend.yml]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      JWT_SECRET: ci-fixture-secret-not-for-production-use
+      CIRCLEUP_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: docker compose up -d --wait mongo
+      - run: npm run build
+      - run: node --test 'dist/**/*.test.js'
+      - if: always()
+        run: docker compose down

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Modal } from "./Modal";
 import { roadmapsApi } from "../lib/api";
 import type { Goal, Roadmap } from "../types/index";
 import { generateRoadmapDraft } from "../lib/roadmapGenerator";
@@ -34,9 +35,7 @@ export default function CreateRoadmapModal({
   const selectedGoal = goals.find((goal) => goal._id === goalId);
   const activeRoadmap = roadmaps.find((roadmap) => {
     const associatedGoalId =
-      typeof roadmap.goalId === "object"
-        ? roadmap.goalId._id
-        : roadmap.goalId;
+      typeof roadmap.goalId === "object" ? roadmap.goalId._id : roadmap.goalId;
     return associatedGoalId === goalId && roadmap.status === "active";
   });
 
@@ -64,15 +63,13 @@ export default function CreateRoadmapModal({
 
   const handleMilestoneChange = (
     index: number,
-    field: "title" | "description",
-    val: string
+    field: "title" | "description" | "targetDate",
+    val: string,
   ) => {
     setMilestones(
       milestones.map((milestone, milestoneIndex) =>
-        milestoneIndex === index
-          ? { ...milestone, [field]: val }
-          : milestone
-      )
+        milestoneIndex === index ? { ...milestone, [field]: val } : milestone,
+      ),
     );
   };
 
@@ -91,7 +88,7 @@ export default function CreateRoadmapModal({
         .map((m) => ({
           title: m.title.trim(),
           description: m.description?.trim() || undefined,
-          targetDate: m.targetDate,
+          targetDate: m.targetDate || undefined,
           completed: false,
         }));
 
@@ -107,43 +104,57 @@ export default function CreateRoadmapModal({
         onClose();
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create roadmap.");
+      setError(
+        err instanceof Error ? err.message : "Failed to create roadmap.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+    <Modal label="Review your roadmap" pending={loading} onClose={onClose}>
+      <div className="bg-white  border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
             Review your roadmap
           </h2>
           <button
             onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl font-bold"
+            disabled={loading}
+            aria-label="Close dialog"
+            className="text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl font-bold"
           >
             &times;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-4 overflow-y-auto flex-1"
+        >
           {error && (
-            <div className="p-3 text-sm rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900">
+            <div
+              role="alert"
+              className="p-3 text-sm rounded-lg bg-red-50 text-red-700 border border-red-200 dark:border-red-900"
+            >
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
+            <label
+              htmlFor="CreateRoadmapModal-field-1"
+              className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1"
+            >
               Associated Goal *
             </label>
             <select
+              id="CreateRoadmapModal-field-1"
               value={goalId}
               onChange={(e) => handleGoalChange(e.target.value)}
               required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
             >
               {goals.map((g) => (
                 <option key={g._id} value={g._id}>
@@ -168,25 +179,41 @@ export default function CreateRoadmapModal({
               </p>
             )}
           </div>
+          {selectedGoal?.targetDate &&
+            milestones.some(
+              (milestone) =>
+                milestone.targetDate &&
+                milestone.targetDate.slice(0, 10) >
+                  selectedGoal.targetDate!.slice(0, 10),
+            ) && (
+              <p className="notice warning" role="status">
+                At least one milestone is scheduled after the goal’s target
+                date.
+              </p>
+            )}
           {activeRoadmap && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
-              Approving this roadmap will replace version {activeRoadmap.version}
-              {" "}({activeRoadmap.title}) as the active plan. The previous
-              version will remain in your roadmap history.
+              Approving this roadmap will replace version{" "}
+              {activeRoadmap.version} ({activeRoadmap.title}) as the active
+              plan. The previous version will remain in your roadmap history.
             </p>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
+            <label
+              htmlFor="CreateRoadmapModal-field-2"
+              className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider mb-1"
+            >
               Roadmap Title *
             </label>
             <input
+              id="CreateRoadmapModal-field-2"
               type="text"
               required
               placeholder="e.g. 6-Month Master Plan"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
             />
           </div>
 
@@ -222,7 +249,7 @@ export default function CreateRoadmapModal({
               {milestones.map((m, idx) => (
                 <div
                   key={idx}
-                  className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 space-y-2 relative"
+                  className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 /30 space-y-2 relative"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-zinc-500">
@@ -247,7 +274,7 @@ export default function CreateRoadmapModal({
                     onChange={(e) =>
                       handleMilestoneChange(idx, "title", e.target.value)
                     }
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white  text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <input
                     type="text"
@@ -257,13 +284,23 @@ export default function CreateRoadmapModal({
                     onChange={(e) =>
                       handleMilestoneChange(idx, "description", e.target.value)
                     }
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white  text-zinc-900 dark:text-zinc-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  {m.targetDate && (
-                    <p className="text-[11px] text-zinc-600">
-                      Final milestone target: {m.targetDate.split("T")[0]}
-                    </p>
-                  )}
+                  <label className="block text-sm text-zinc-700">
+                    Milestone target date
+                    <input
+                      className="mt-1 block rounded-lg border border-zinc-300 px-2 py-1"
+                      type="date"
+                      value={m.targetDate?.slice(0, 10) ?? ""}
+                      onChange={(event) =>
+                        handleMilestoneChange(
+                          idx,
+                          "targetDate",
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
                 </div>
               ))}
             </div>
@@ -273,6 +310,7 @@ export default function CreateRoadmapModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={loading}
               className="px-4 py-2 text-sm font-medium rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               Cancel
@@ -291,6 +329,6 @@ export default function CreateRoadmapModal({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }

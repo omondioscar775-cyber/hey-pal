@@ -1,0 +1,30 @@
+services:
+  mongo:
+    image: mongo:8
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - circleup-mongo:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval 'if (!db.hello().setName) rs.initiate({_id:"rs0",members:[{_id:0,host:"mongo:27017"}]}); if (!db.hello().isWritablePrimary) quit(1)'
+      interval: 4s
+      timeout: 4s
+      retries: 20
+  api:
+    build: .
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongo:27017/circleup?replicaSet=rs0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the environment or backend .env}
+      CLIENT_URL: http://localhost:3000
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+volumes:
+  circleup-mongo:

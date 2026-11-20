@@ -34,7 +34,7 @@ While conventional productivity tools either act as high-level vision boards wit
 - **Framework**: Next.js 16.4.6 with App Router & Turbopack.
 - **UI Library**: React 19.3.0.
 - **Styling**: Tailwind CSS v4.
-- **State Management**: Centralized `AuthProvider` with token persistence in `localStorage`.
+- **State Management**: Centralized `AuthProvider` with an HttpOnly session cookie issued by the Next.js proxy. See the [frontend implementation and verification report](frontend/README.md).
 - **API Integration**: Unified typed API client with automatic Bearer token injection.
 
 ---
@@ -141,12 +141,14 @@ Opening roadmap creation generates a deterministic draft from the selected goal'
 | **Goals API** | Complete | Verified: Create, Read, Update, Delete |
 | **Roadmaps API and draft generation** | Implemented | CRUD/versioning plus deterministic, editable frontend drafts with explicit activation |
 | **Tasks API** | Complete | Verified: Scheduling, priority, dependencies, completedAt timestamps |
-| **Frontend Integration** | Complete | Next.js 16 App Router + Turbopack, fully connected to backend |
+| **Frontend Integration** | Complete | Next.js App Router and a same-origin proxy for supported Express routes |
 | **Dashboard** | Complete | KPI cards, live action items feed, interactive goal progress widgets |
 
 ---
 
 ## 6. Local Setup Instructions
+
+See the [backend implementation and replica-set setup](docs/BACKEND.md) for the current API, security model and operations guide.
 
 ### 6.1 Backend
 ```bash

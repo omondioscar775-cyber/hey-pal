@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   createGoal,
+  archiveGoal,
   getGoals,
   getGoalById,
   updateGoal,
@@ -17,6 +18,7 @@ router.use(protect);
 router.post("/", createGoal);
 router.get("/", getGoals);
 router.get("/:id", getGoalById);
+router.post("/:id/archive", archiveGoal);
 router.patch("/:id", updateGoal);
 router.delete("/:id", deleteGoal);
 

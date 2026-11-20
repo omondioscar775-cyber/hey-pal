@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IMilestone {
+  _id?: mongoose.Types.ObjectId;
   title: string;
   description?: string;
   targetDate?: Date;
@@ -13,7 +14,10 @@ export interface IRoadmap extends Document {
   version: number;
   title: string;
   milestones: IMilestone[];
-  status: "active" | "superseded" | "completed";
+  status: "draft" | "active" | "superseded" | "completed" | "archived";
+  acceptedAt?: Date;
+  supersedesId?: mongoose.Types.ObjectId;
+  generationMethod: "manual" | "template" | "ai_assisted";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,7 +39,7 @@ const milestoneSchema = new Schema<IMilestone>(
       default: false,
     },
   },
-  { _id: true }
+  { _id: true },
 );
 
 const roadmapSchema = new Schema<IRoadmap>(
@@ -63,23 +67,29 @@ const roadmapSchema = new Schema<IRoadmap>(
       required: true,
       trim: true,
     },
+    acceptedAt: Date,
+    supersedesId: { type: Schema.Types.ObjectId, ref: "Roadmap" },
+    generationMethod: {
+      type: String,
+      enum: ["manual", "template", "ai_assisted"],
+      default: "manual",
+    },
     milestones: {
       type: [milestoneSchema],
       default: [],
     },
     status: {
       type: String,
-      enum: ["active", "superseded", "completed"],
+      enum: ["draft", "active", "superseded", "completed", "archived"],
       default: "active",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-roadmapSchema.index(
-  { goalId: 1, version: 1 },
-  { unique: true }
-);
+roadmapSchema.index({ goalId: 1, version: 1 }, { unique: true });
+
+roadmapSchema.index({ userId: 1, goalId: 1, status: 1, version: -1 });
 
 const Roadmap = mongoose.model<IRoadmap>("Roadmap", roadmapSchema);
 

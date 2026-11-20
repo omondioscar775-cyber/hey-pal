@@ -7,6 +7,8 @@ export interface IGoal extends Document {
   title: string;
   description?: string;
   category: string;
+  motivation?: string;
+  priority?: string;
   targetDate?: Date;
   currentState: string;
   desiredOutcome: string;
@@ -35,6 +37,8 @@ const goalSchema = new Schema<IGoal>(
       trim: true,
       maxlength: 1000,
     },
+    motivation: { type: String, maxlength: 1000 },
+    priority: { type: String, enum: ["low", "medium", "high", "critical"] },
     category: {
       type: String,
       required: true,
@@ -63,8 +67,11 @@ const goalSchema = new Schema<IGoal>(
       default: "active",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+goalSchema.index({ userId: 1, status: 1, createdAt: -1 });
+goalSchema.index({ userId: 1, targetDate: 1 });
 
 const Goal = mongoose.model<IGoal>("Goal", goalSchema);
 

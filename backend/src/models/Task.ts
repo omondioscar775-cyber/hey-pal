@@ -1,12 +1,16 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export type TaskPriority = "low" | "medium" | "high" | "critical";
-export type TaskStatus = "pending" | "in_progress" | "completed" | "missed" | "cancelled";
+export type TaskStatus =
+  "pending" | "in_progress" | "completed" | "missed" | "cancelled";
 
 export interface ITask extends Document {
   userId: mongoose.Types.ObjectId;
   goalId: mongoose.Types.ObjectId;
   roadmapId: mongoose.Types.ObjectId;
+  milestoneId?: mongoose.Types.ObjectId;
+  dueAt?: Date;
+  version: number;
   title: string;
   description?: string;
   scheduledDate: Date;
@@ -40,6 +44,9 @@ const taskSchema = new Schema<ITask>(
       required: true,
       index: true,
     },
+    milestoneId: Schema.Types.ObjectId,
+    dueAt: Date,
+    version: { type: Number, default: 1 },
     title: {
       type: String,
       required: true,
@@ -75,16 +82,21 @@ const taskSchema = new Schema<ITask>(
       type: Boolean,
       default: false,
     },
-    dependsOn: [{
-      type: Schema.Types.ObjectId,
-      ref: "Task",
-    }],
+    dependsOn: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Task",
+      },
+    ],
     completedAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 taskSchema.index({ userId: 1, scheduledDate: 1, status: 1 });
+
+taskSchema.index({ userId: 1, status: 1, dueAt: 1 });
+taskSchema.index({ goalId: 1, milestoneId: 1 });
 
 const Task = mongoose.model<ITask>("Task", taskSchema);
 

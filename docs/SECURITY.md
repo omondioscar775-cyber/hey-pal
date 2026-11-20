@@ -1,46 +1,12 @@
-# Security and Session Notes
+# CircleUp security and sessions
 
-## Current authentication behavior
+- Express signs only HS256 JWTs with an expiry. New tokens carry a managed session ID. Each protected call with a managed token checks expiry, revocation, account status, and the credential stamp. The Next.js proxy stores the token in an HttpOnly, SameSite=Lax cookie with Secure enabled in production.
+- Browser writes use the same-origin JSON proxy. It rejects cross-site mutations reported by Fetch Metadata and permits only known application paths. Express authenticates with a bearer header.
+- Logout revokes the managed session before the proxy clears the browser cookie. Enable `REQUIRE_MANAGED_SESSIONS=true` to invalidate legacy tokens during cutover. Production enables it by default.
+- Passwords use bcrypt with 12 rounds. New passwords respect the 72-byte bcrypt input limit. Password-reset tokens are random, single-use, stored by hash and checked against their expiry. Reset revokes managed sessions and advances the credential stamp in one transaction.
+- The reset provider uses an independent secret and HTTPS. It must keep URLs, reset tokens and credentials out of logs. Delivery uses a synchronous webhook. Test it and review response-timing exposure in staging.
+- Resource operations derive owner identity from the authenticated request. Linked joins are scoped to the owner. Task dependencies are checked against the goal graph and concurrent updates share a transaction guard. Proposal approval revalidates the current planning state before applying changes.
+- The API uses Helmet, configured CORS origins, per-process rate limiting, bounded JSON and sanitized errors with request IDs. Place production API traffic behind a gateway. Review distributed abuse controls and permissions at deployment.
+- Before launch, confirm HTTPS, least-privilege MongoDB access, privacy retention policy, audit retention, monitoring, and backup restore procedures.
 
-Verified in `backend/src/controllers/authController.ts`,
-`backend/src/middleware/authMiddleware.ts`, and
-`frontend/src/lib/api.ts`:
-
-- Passwords are hashed with bcrypt using 12 rounds.
-- Login and registration return a signed JWT with a seven-day expiry.
-- Protected API routes verify the token signature and expiry.
-- The frontend stores the JWT in `localStorage` and attaches it as a bearer token.
-- Frontend logout removes the local token only; there is no server-side revocation.
-- There is no refresh-token flow, password-reset flow, or account session registry.
-- The authentication middleware returns unauthorized responses for missing,
-  invalid, and expired tokens, and returns a service error if the JWT secret is
-  not configured.
-
-These are implementation facts, not a production-readiness assessment.
-
-## Session lifecycle decision points
-
-Before changing the current contract, decide:
-
-1. Whether sessions should remain stateless or become revocable server-side
-   sessions.
-2. The access-token lifetime and whether refresh-token rotation is needed.
-3. Whether browser credentials should move from `localStorage` to `HttpOnly`,
-   `Secure`, `SameSite` cookies. Cookie-based credentials also require a CSRF
-   protection strategy.
-4. How logout, password changes, account deletion, and suspected credential
-   compromise revoke existing sessions.
-5. Whether existing clients require a migration or a compatibility period.
-
-No session architecture migration is approved by this note. Keep the existing
-API behavior until those decisions, deployment constraints, and migration
-requirements are reviewed.
-
-## Verification
-
-`npm test` currently exercises the authentication middleware for valid,
-missing, empty, expired, invalid-signature, and missing-secret cases. Resource
-ownership and cross-user access for goals, roadmaps, and tasks are tested
-through the Express API using stubbed model lookups, so these checks do not
-require or modify a MongoDB database. Login rate limiting and end-to-end session
-flows still need integration tests.
+See [backend operations and verification](BACKEND.md) for the verification scope.

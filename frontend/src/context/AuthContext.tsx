@@ -1,134 +1,81 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import type { User } from "../types/index";
-import { authApi, getToken, removeToken } from "../lib/api";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import type { User } from "../types";
+import { authApi, ApiError } from "../lib/api";
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  sessionError: string;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setTokenState] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const refreshUser = async () => {
-    const savedToken = getToken();
-    if (!savedToken) {
-      setUser(null);
-      setTokenState(null);
-      setIsLoading(false);
-      return;
-    }
-
-    setTokenState(savedToken);
-
+  const [isLoading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
+  const refreshUser = useCallback(async () => {
     try {
-      const res = await authApi.getMe();
-      if (res.success && res.user) {
-        setUser(res.user);
-      } else {
-        removeToken();
-        setUser(null);
-        setTokenState(null);
-      }
-    } catch (err) {
-      console.error("Auth check failed:", err);
-      removeToken();
+      setUser((await authApi.getMe()).user);
+      setSessionError("");
+    } catch (error) {
       setUser(null);
-      setTokenState(null);
+      setSessionError(
+        error instanceof ApiError && error.status === 401
+          ? ""
+          : "Your session could not be checked.",
+      );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const savedToken = getToken();
-
-    if (!savedToken) {
-      void Promise.resolve().then(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void authApi
-      .getMe()
-      .then((res) => {
-        if (cancelled) return;
-        if (res.success && res.user) {
-          setUser(res.user);
-          setTokenState(savedToken);
-        } else {
-          removeToken();
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        console.error("Auth check failed:", err);
-        removeToken();
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const res = await authApi.login(email, password);
-      setUser(res.user);
-      setTokenState(res.token);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const register = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const res = await authApi.register(name, email, password);
-      setUser(res.user);
-      setTokenState(res.token);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logout = () => {
-    removeToken();
-    setUser(null);
-    setTokenState(null);
-  };
+  useEffect(() => {
+    localStorage.removeItem("circleup_token");
+    void Promise.resolve().then(refreshUser);
+    const expire = () => setUser(null);
+    window.addEventListener("circleup:expired", expire);
+    return () => window.removeEventListener("circleup:expired", expire);
+  }, [refreshUser]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
-        isAuthenticated: !!user,
-        login,
-        register,
-        logout,
+        isAuthenticated: Boolean(user),
+        sessionError,
         refreshUser,
+        login: async (...args) => {
+          setUser((await authApi.login(...args)).user);
+          setSessionError("");
+        },
+        register: async (...args) => {
+          setUser((await authApi.register(...args)).user);
+          setSessionError("");
+        },
+        logout: async () => {
+          try {
+            await authApi.logout();
+            setUser(null);
+          } catch {
+            setSessionError("Sign-out failed. Please try again.");
+          }
+        },
       }}
     >
       {children}
@@ -138,8 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth requires AuthProvider");
   return context;
 }
